@@ -35,13 +35,25 @@ const tasks = [
 
 // Create HTTP Server
 const server = http.createServer((req, res) => {
+    // CORS headers for seamless browser access
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        res.end();
+        return;
+    }
+
     const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost:3000'}`);
     const pathname = parsedUrl.pathname;
     const method = req.method;
 
     // Route: GET /
-    if (pathname === '/' && method === 'GET') {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
+    if (pathname === '/' && (method === 'GET' || method === 'HEAD')) {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        if (method === 'HEAD') return res.end();
         res.end(`
             <!DOCTYPE html>
             <html lang="en">
@@ -69,15 +81,21 @@ const server = http.createServer((req, res) => {
     }
 
     // Route: GET /tasks
-    if (pathname === '/tasks' && method === 'GET') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(tasks, null, 2));
+    if (pathname === '/tasks' && (method === 'GET' || method === 'HEAD')) {
+        const jsonOutput = JSON.stringify(tasks, null, 2);
+        res.writeHead(200, {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Content-Length': Buffer.byteLength(jsonOutput)
+        });
+        if (method === 'HEAD') return res.end();
+        res.end(jsonOutput);
         return;
     }
 
     // Route: GET /about
-    if (pathname === '/about' && method === 'GET') {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
+    if (pathname === '/about' && (method === 'GET' || method === 'HEAD')) {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        if (method === 'HEAD') return res.end();
         res.end(`
             <!DOCTYPE html>
             <html lang="en">
@@ -110,14 +128,15 @@ const server = http.createServer((req, res) => {
     }
 
     // Route: GET /home (Static File Serving using FS Module)
-    if (pathname === '/home' && method === 'GET') {
+    if (pathname === '/home' && (method === 'GET' || method === 'HEAD')) {
         const filePath = path.join(__dirname, 'public', 'index.html');
         fs.readFile(filePath, 'utf8', (err, data) => {
             if (err) {
-                res.writeHead(500, { 'Content-Type': 'text/html' });
+                res.writeHead(500, { 'Content-Type': 'text/html; charset=utf-8' });
                 res.end('<h1>500 Internal Server Error</h1><p>Failed to read static file index.html.</p>');
             } else {
-                res.writeHead(200, { 'Content-Type': 'text/html' });
+                res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+                if (method === 'HEAD') return res.end();
                 res.end(data);
             }
         });
@@ -139,11 +158,15 @@ const server = http.createServer((req, res) => {
 
                 // Validate required fields: id, taskName, assignedTo, status
                 if (id === undefined || id === null || !taskName || !assignedTo || !status) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({
+                    const errRes = JSON.stringify({
                         error: "Validation Error",
                         message: "Required fields missing. Must include id, taskName, assignedTo, and status."
-                    }));
+                    });
+                    res.writeHead(400, {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Content-Length': Buffer.byteLength(errRes)
+                    });
+                    res.end(errRes);
                     return;
                 }
 
@@ -157,24 +180,33 @@ const server = http.createServer((req, res) => {
 
                 tasks.push(newTask);
 
-                res.writeHead(201, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
+                const successRes = JSON.stringify({
                     message: "Task added successfully",
                     task: newTask
-                }, null, 2));
+                }, null, 2);
+
+                res.writeHead(201, {
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Content-Length': Buffer.byteLength(successRes)
+                });
+                res.end(successRes);
             } catch (err) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
+                const badRes = JSON.stringify({
                     error: "Bad Request",
                     message: "Invalid JSON format in request body."
-                }));
+                });
+                res.writeHead(400, {
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Content-Length': Buffer.byteLength(badRes)
+                });
+                res.end(badRes);
             }
         });
         return;
     }
 
     // Invalid Routes: Return 404
-    res.writeHead(404, { 'Content-Type': 'text/html' });
+    res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(`
         <!DOCTYPE html>
         <html lang="en">
@@ -192,7 +224,7 @@ const server = http.createServer((req, res) => {
             <div class="card">
                 <h1>404 - Route Not Found</h1>
                 <p>The requested URL <code>${pathname}</code> was not found on this server.</p>
-                <a href="/">Go Home</a>
+                <a href="/home">Go to Dashboard</a>
             </div>
         </body>
         </html>
