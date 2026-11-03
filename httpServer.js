@@ -33,6 +33,52 @@ const tasks = [
     }
 ];
 
+// Helper to respond with JSON or formatted HTML for browser address bar navigation
+function respondJson(req, res, statusCode, data) {
+    const isBrowserNavigation = req.headers['sec-fetch-dest'] === 'document' && 
+                                req.headers['accept'] && 
+                                req.headers['accept'].includes('text/html');
+
+    if (isBrowserNavigation) {
+        const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tasks JSON - Port ${PORT}</title>
+    <style>
+        body { background: #0f172a; color: #f8fafc; font-family: 'JetBrains Mono', 'Courier New', monospace; padding: 25px; margin: 0; }
+        .nav-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 12px; font-family: sans-serif; }
+        .badge { background: #10b981; color: white; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        pre { background: #1e293b; color: #38bdf8; padding: 20px; border-radius: 8px; font-size: 14px; line-height: 1.6; overflow-x: auto; border: 1px solid #334155; margin: 0; }
+        a { color: #38bdf8; text-decoration: none; font-size: 13px; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="nav-bar">
+        <div>
+            <span class="badge">${statusCode} OK</span>
+            <span style="margin-left: 10px; color: #94a3b8; font-size: 13px;">JSON Format &bull; Node.js HTTP Server (Port ${PORT})</span>
+        </div>
+        <div>
+            <a href="/home">&larr; Back to Dashboard</a>
+        </div>
+    </div>
+    <pre>${JSON.stringify(data, null, 2)}</pre>
+</body>
+</html>`;
+        res.writeHead(statusCode, { 'Content-Type': 'text/html; charset=utf-8' });
+        return res.end(html);
+    }
+
+    const jsonOutput = JSON.stringify(data, null, 2);
+    res.writeHead(statusCode, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Length': Buffer.byteLength(jsonOutput)
+    });
+    res.end(jsonOutput);
+}
+
 // Create HTTP Server
 const server = http.createServer((req, res) => {
     // CORS headers for seamless browser access
@@ -82,13 +128,11 @@ const server = http.createServer((req, res) => {
 
     // Route: GET /tasks
     if (pathname === '/tasks' && (method === 'GET' || method === 'HEAD')) {
-        const jsonOutput = JSON.stringify(tasks, null, 2);
-        res.writeHead(200, {
-            'Content-Type': 'application/json; charset=utf-8',
-            'Content-Length': Buffer.byteLength(jsonOutput)
-        });
-        if (method === 'HEAD') return res.end();
-        res.end(jsonOutput);
+        if (method === 'HEAD') {
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            return res.end();
+        }
+        respondJson(req, res, 200, tasks);
         return;
     }
 
